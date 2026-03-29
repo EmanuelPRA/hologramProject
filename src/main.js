@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { Boid } from './boidClass.js';
+import { FBXLoader } from 'three/examples/jsm/Addons.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';   
 
 
 let helperToggle = true
 
-const MAX_BOIDS = 200;
-const WIDTH = 100;
+const MAX_BOIDS = 1000;
+const WIDTH = 200;
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
@@ -22,7 +24,7 @@ renderer.domElement.style.cssText = `position:absolute; top:50%; left:50%; trans
 
 
 const fov = 75;
-const dist = (WIDTH * 1.2) / Math.tan(THREE.MathUtils.degToRad(fov) / 2);
+const dist = (WIDTH * 1.2) / Math.tan(THREE.MathUtils.degToRad(fov) / 2) +100;
 const cameras = {
     front: new THREE.PerspectiveCamera(fov, 1, 0.1, 10000),
     back:  new THREE.PerspectiveCamera(fov, 1, 0.1, 10000),
@@ -40,12 +42,44 @@ cameras.back.rotation.z = Math.PI;
 cameras.left.rotation.z = -Math.PI / 2;
 cameras.right.rotation.z = Math.PI / 2;
 
+//DEBUG
+let isDebugMode = false;
+
+const debugCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 10000);
+debugCamera.position.set(0, WIDTH, WIDTH); // Positioned at an angle
+
+const controls = new OrbitControls(debugCamera, renderer.domElement);
+controls.enabled = false; // Start disabled
+//DEBUG
+
+
 const boxHelper = new THREE.Mesh(
     new THREE.BoxGeometry(WIDTH * 2, WIDTH * 2, WIDTH * 2),
     new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.3 })
 );
 scene.add(boxHelper);
-scene.add(new THREE.DirectionalLight(0xffffff, 10));
+
+//add logo.fbx to scene
+const loader = new FBXLoader();
+loader.load('/logo.fbx', (object) => {
+    object.material = new THREE.MeshPhongMaterial({
+        emissive: 0x001133,
+        emissiveIntensity: 5,
+        specular: 0xffffff,
+        shininess: 100
+    });
+    object.scale.set(0.5, 0.5, 0.5);
+    scene.add(object);
+});
+
+const ambientLight = new THREE.AmbientLight(0xFFFFFF, 1); 
+    scene.add(ambientLight);
+
+
+const coreLight = new THREE.PointLight(0x0055ff,15, 10000, 0); // Faculty Blue
+coreLight.position.set(20, 20, 50);
+scene.add(coreLight);
+
 
 let flock = [];
 for (let i = 0; i < MAX_BOIDS; i++) {
@@ -59,30 +93,39 @@ for (let i = 0; i < MAX_BOIDS; i++) {
 function animate() {
     stats.begin();
 
+    // Update Boids (This happens regardless of view)
     flock.forEach(b => {
         b.flock(flock);
         b.edges();
         b.update();
     });
 
-    const S = Math.min(window.innerWidth, window.innerHeight);
-    const vSize = S / 3;
+    if (isDebugMode) {
+        // --- SINGLE CAMERA VIEW ---
+        controls.update();
+        renderer.render(scene, debugCamera);
+    } else {
+        // --- HOLOGRAPHIC CROSS VIEW ---
+        const S = Math.min(window.innerWidth, window.innerHeight);
+        const vSize = S / 3;
 
-    renderer.setScissorTest(true);
-    renderer.clear();
+        renderer.setScissorTest(true);
+        renderer.clear();
 
-    const renderView = (cam, x, y) => {
-        renderer.setViewport(x, y, vSize, vSize);
-        renderer.setScissor(x, y, vSize, vSize);
-        renderer.render(scene, cam);
-    };
+        const renderView = (cam, x, y) => {
+            renderer.setViewport(x, y, vSize, vSize);
+            renderer.setScissor(x, y, vSize, vSize);
+            renderer.render(scene, cam);
+        };
 
-    renderView(cameras.front, vSize, vSize * 2);
-    renderView(cameras.back, vSize, 0);
-    renderView(cameras.left, 0, vSize);
-    renderView(cameras.right, vSize * 2, vSize);
+        renderView(cameras.front, vSize, vSize * 2);
+        renderView(cameras.back, vSize, 0);
+        renderView(cameras.left, 0, vSize);
+        renderView(cameras.right, vSize * 2, vSize);
 
-    renderer.setScissorTest(false);
+        renderer.setScissorTest(false);
+    }
+
     stats.end();
     requestAnimationFrame(animate);
 }
@@ -105,4 +148,15 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
+});
+
+window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'd') {
+        isDebugMode = !isDebugMode;
+        controls.enabled = isDebugMode;
+        
+        // Reset the renderer state when switching
+        renderer.setScissorTest(false);
+        renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height);
+    }
 });

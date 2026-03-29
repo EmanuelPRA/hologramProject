@@ -1,18 +1,25 @@
 import * as THREE from 'three';
 
+
 export class Boid {
-  constructor(parameters, scene, WIDTH) {
+  constructor(parameters, scene, WIDTH, geometry) {
     this.WIDTH = WIDTH;
     this.position = new THREE.Vector3(parameters.position.x, parameters.position.y, parameters.position.z);
     this.velocity = new THREE.Vector3(parameters.velocity.x, parameters.velocity.y, parameters.velocity.z);
     this.acceleration = new THREE.Vector3(0, 0, 0);
     this.maxSpeed = parameters.maxSpeed || 1;
     this.maxForce = parameters.maxForce || 0.05;
-
     this.mesh = new THREE.Mesh(
-      new THREE.ConeGeometry(0.5, 1.5, 8),
-      new THREE.MeshStandardMaterial({ color: 0xffffff })
+      geometry || new THREE.TetrahedronGeometry(5,0), // Fallback geometry
+      new THREE.MeshPhongMaterial({
+          color: 0xAAAAFF,
+          emissive: 0x001133,
+          specular: 0xffffff,
+          shininess: 100
+      })
     );
+    
+    this.mesh.scale.set(0.5, 0.5, 0.5); // Scale down the model
     scene.add(this.mesh);
     this.mesh.position.copy(this.position);
   }
@@ -38,7 +45,7 @@ export class Boid {
 
   cohesion(boids) {
     let numberOfBoids = 0;
-    let perceptionRadius = 30;
+    let perceptionRadius = 20;
     let centerOfMass = new THREE.Vector3(0, 0, 0);
     for (let j = 0; j < boids.length; j++) {
       if (this !== boids[j] && this.position.distanceTo(boids[j].position) < perceptionRadius) {
@@ -59,7 +66,7 @@ export class Boid {
 
   separation(boids) {
     let numberOfBoids = 0;
-    let perceptionRadius = 10;
+    let perceptionRadius = 15;
     let steer = new THREE.Vector3(0, 0, 0);
     for (let j = 0; j < boids.length; j++) {
       let distance = this.position.distanceTo(boids[j].position);

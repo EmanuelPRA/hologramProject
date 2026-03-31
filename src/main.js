@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 let helperToggle = true
 
-const MAX_BOIDS = 1000;
+const MAX_BOIDS = 100;
 const WIDTH = 200;
 const stats = new Stats();
 document.body.appendChild(stats.dom);
@@ -61,6 +61,7 @@ scene.add(boxHelper);
 
 //add logo.fbx to scene
 const loader = new FBXLoader();
+
 loader.load('/logo.fbx', (object) => {
     object.material = new THREE.MeshPhongMaterial({
         emissive: 0x001133,
@@ -81,31 +82,60 @@ coreLight.position.set(20, 20, 50);
 scene.add(coreLight);
 
 
-let flock = [];
+const geometry = new THREE.TetrahedronGeometry(3, 0);
+geometry.rotateX(Math.PI / 2); // Align the cone to point forward
+
+const material = new THREE.MeshPhongMaterial({ color: 0x00aaaa, flatShading: true });
+
+// Create the InstancedMesh
+const mesh = new THREE.InstancedMesh(geometry, material, MAX_BOIDS);
+scene.add(mesh);
+
+// A dummy object used to generate the transformation matrix for each boid
+const dummy = new THREE.Object3D();
+
+let flock = []
+
+// Initialize flock
 for (let i = 0; i < MAX_BOIDS; i++) {
-    flock.push(new Boid({
-        position: { x: (Math.random() - 0.5) * WIDTH, y: (Math.random() - 0.5) * WIDTH, z: (Math.random() - 0.5) * WIDTH },
-        velocity: { x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: (Math.random() - 0.5) * 2 },
-        acceleration: { x: 0, y: 0, z: 0 }
-    }, scene, WIDTH));
+  flock.push(new Boid({
+    position: { x: (Math.random() - 0.5) * WIDTH, y: (Math.random() - 0.5) * WIDTH, z: (Math.random() - 0.5) * WIDTH },
+    velocity: { x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: (Math.random() - 0.5) * 2 },
+    WIDTH: WIDTH
+  }, i)); // Pass the index i as the ID
 }
+
 
 function animate() {
     stats.begin();
 
-    // Update Boids (This happens regardless of view)
-    flock.forEach(b => {
+    for (let i = 0; i < flock.length; i++) {
+        const b = flock[i];
+        
+        // 1. Run the physics
         b.flock(flock);
         b.edges();
         b.update();
-    });
+
+        // 2. Set the dummy object's properties
+        dummy.position.copy(b.position);
+        
+        // Point the mesh in the direction of velocity
+        // (position + velocity = target point)
+        dummy.lookAt(b.position.clone().add(b.velocity));
+        
+        // 3. Update the dummy's internal matrix and apply to InstancedMesh
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+    }
+
+    mesh.instanceMatrix.needsUpdate = true;
 
     if (isDebugMode) {
-        // --- SINGLE CAMERA VIEW ---
         controls.update();
         renderer.render(scene, debugCamera);
     } else {
-        // --- HOLOGRAPHIC CROSS VIEW ---
+        
         const S = Math.min(window.innerWidth, window.innerHeight);
         const vSize = S / 3;
 

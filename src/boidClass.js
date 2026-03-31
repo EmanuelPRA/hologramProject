@@ -2,26 +2,14 @@ import * as THREE from 'three';
 
 
 export class Boid {
-  constructor(parameters, scene, WIDTH, geometry) {
-    this.WIDTH = WIDTH;
+  constructor(parameters, id) {
+    this.id = id; // The index in the InstancedMesh
     this.position = new THREE.Vector3(parameters.position.x, parameters.position.y, parameters.position.z);
     this.velocity = new THREE.Vector3(parameters.velocity.x, parameters.velocity.y, parameters.velocity.z);
     this.acceleration = new THREE.Vector3(0, 0, 0);
-    this.maxSpeed = parameters.maxSpeed || 1;
+    this.maxSpeed = parameters.maxSpeed || 1.5;
     this.maxForce = parameters.maxForce || 0.05;
-    this.mesh = new THREE.Mesh(
-      geometry || new THREE.TetrahedronGeometry(5,0), // Fallback geometry
-      new THREE.MeshPhongMaterial({
-          color: 0xAAAAFF,
-          emissive: 0x001133,
-          specular: 0xffffff,
-          shininess: 100
-      })
-    );
-    
-    this.mesh.scale.set(0.5, 0.5, 0.5); // Scale down the model
-    scene.add(this.mesh);
-    this.mesh.position.copy(this.position);
+    this.WIDTH = parameters.WIDTH;
   }
 
   align(boids) {
@@ -86,11 +74,24 @@ export class Boid {
     return steer;
   }
 
-  flock(boids) {
+  obstacles(obstacle){
+    let perceptionRadius = 30
+    let distance = this.position.distanceTo(obstacle)
+    let steer = new THREE.Vector3(0,0,0)
+    if(distance < perceptionRadius){
+      let diff = new THREE.Vector3().subVectors(this.position, obstacle);
+      diff.divideScalar(distance * distance);
+      steer.add(diff);
+    }
+    return steer;
+  }
+
+  flock(boids/*, obstacle*/) {
     let a = this.align(boids).multiplyScalar(1.0);
     let c = this.cohesion(boids).multiplyScalar(0.8);
     let s = this.separation(boids).multiplyScalar(1.5);
-    this.acceleration.add(a).add(c).add(s);
+    //let o = this.obstacles(obstacle).multiplyScalar(2.0);
+    this.acceleration.add(a).add(c).add(s)/*.add(o)*/;
   }
 
   edges() {
@@ -105,7 +106,5 @@ export class Boid {
     this.velocity.add(this.acceleration).clampLength(0, this.maxSpeed);
     this.position.add(this.velocity);
     this.acceleration.multiplyScalar(0);
-    this.mesh.position.copy(this.position);
-    this.mesh.lookAt(this.position.clone().add(this.velocity));
   }
 }
